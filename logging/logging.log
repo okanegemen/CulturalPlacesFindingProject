@@ -1,0 +1,5 @@
+root | ERROR | Kaunos Antik Kenti Muğla | https://mugla.ktb.gov.tr/Resim/162598,kaunos-tapinak.png?0 | [Errno 54] Connection reset by peer 
+root | ERROR | Galata Kulesi İstanbul | https://www.flypgs.com/blog/wp-content/uploads/2023/01/galata-kulesi.jpg | HTTP Error 302: The HTTP server returned a redirect error that would lead to an infinite loop.
+The last 30x error message was:
+Moved Temporarily 
+root | ERROR | Taksiyarhis Kilisesi Balıkesir | https://live.staticflickr.com/65535/48545594327_7984a55ca3_b.jpg | HTTP Error 403: Forbidden 

@@ -121,8 +121,6 @@ class takeSource(object):
         
         return self.links
 
-        
-
 
     def turnToDfAndSaveLinksPlacesAndCity(self,name : str= None, save:bool =False):
 

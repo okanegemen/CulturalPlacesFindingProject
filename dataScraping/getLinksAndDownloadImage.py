@@ -1,4 +1,4 @@
-from scrapingBot import *
+from dataScraping.scrapingBot import *
 
 from DownloadTool import *
 
