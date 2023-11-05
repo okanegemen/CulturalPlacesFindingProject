@@ -15,11 +15,6 @@ import os
 from  selenium.common.exceptions import TimeoutException
 
 
-
-
-
-
-
 class takeSource(object):
 
     def __init__(self):
@@ -144,10 +139,7 @@ class takeSource(object):
 
         else: return data
 
-    
 
-
-    
 
 
 # Creating header for file containing image source link 
