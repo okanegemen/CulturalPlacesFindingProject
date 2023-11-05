@@ -54,15 +54,15 @@ def visualize(path_list:list):
 
 # download.download_img()
 
-from utils import make_zip
+# from utils import make_zip
 
-from utils import LoadData
+# from utils import LoadData
 
 
 
-ld = LoadData()
+# ld = LoadData()
 
-ld.directoryToCsvFileWithPath("/Users/okanegemen/Desktop/BitirmeProjesi/dataScraping/data4").to_csv("withImages.csv",index=False)
+# ld.directoryToCsvFileWithPath("/Users/okanegemen/Desktop/BitirmeProjesi/dataScraping/data4").to_csv("withImages.csv",index=False)
 
 
 

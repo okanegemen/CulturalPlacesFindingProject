@@ -150,7 +150,6 @@ class takeSource(object):
     
 
 
-
 # Creating header for file containing image source link 
 # with open("output/links/img_src_links.csv", "w") as outfile:
 #     outfile.write("search_terms|src_link\n")
