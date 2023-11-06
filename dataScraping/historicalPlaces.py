@@ -52,7 +52,6 @@ def takeNamesAndCreateDf(listDiv:list,columns:list = None):
     }
 
 
-   
 
 
     for txt in array:
