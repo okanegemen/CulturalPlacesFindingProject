@@ -137,28 +137,7 @@ class DataStuff():
 
         return np.safe_eval(rawData)
 
-    def transformToTorchFormat(self,img):
-        """
-        this is the function which taked images and turned into torch format
 
-        Args:
-            img (np.array): It's type should be np.array type image 
-            
-
-        Returns:
-            torch.tensor: The function is return torch.tensor type images
-        """
-        transforms = T.Compose([
-
-            T.ToTensor(),
-            T.Normalize(mean = [0.485, 0.456, 0.406] , 
-                        std = [0.229, 0.224, 0.225])
-
-        ])
-
-
-
-        return transforms(img)
 
     def getImageList(self,dfPath):
         data = pd.read_csv(dfPath)
