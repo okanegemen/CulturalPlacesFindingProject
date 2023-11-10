@@ -9,9 +9,81 @@ import warnings
 from torch.autograd import Variable
 import os 
 import cv2 as cv
+import faiss
+from tqdm import tqdm
+
+from torch.backends import mps
 
 
 warnings.filterwarnings("ignore")
+
+
+class DataStuff():
+    def __init__(self):
+        pass
+        
+    def _getImagesPathsFromFolder(self,rootPathOfImagesFolders:str,save:bool = True, savedName:str="dataWithImages"):
+
+        
+        folders = sorted(os.walk(rootPathOfImagesFolders))
+
+        dicti = {
+            "NAMES" : [],
+            "PATHS" : [],
+
+        }
+
+        for child in folders[1:]:
+            for image in child[2]:
+                
+                    
+                    dicti["NAMES"].append(str(child[0].split("/")[-1]))
+                    dicti["PATHS"].append(str(os.path.join(child[0],image)))
+
+                
+        
+        df = pd.DataFrame(data=dicti,copy=True)
+
+        uniques = list(df["NAMES"].unique())
+
+        labels = [uniques.index(name) for name in df["NAMES"]]
+
+        df["LABELS"] = labels
+        if save:
+
+            df.to_csv(f"{savedName}.csv",index=False)
+
+        return df
+        
+
+    def makeArray(self,rawData):
+
+        return np.safe_eval(rawData)
+
+    
+
+    def _getImageList(self,dfPathOrDf):
+
+        if type(dfPathOrDf) is str :
+
+            data = pd.read_csv(dfPathOrDf)
+            paths = data["PATHS"].values.tolist()
+        else:
+            paths = dfPathOrDf["PATHS"].values.tolist()
+            return [dfPathOrDf,paths]
+
+        return [data,paths]
+
+    def createIndexFilePath(self,name = "indexedImagesFeaturesData"):
+
+        curr_dir = os.getcwd()
+        return os.path.join(curr_dir,"metaData",f"{name}.idx")
+
+
+
+
+
+
 
 
 
@@ -21,13 +93,27 @@ class FeatureExtraction(nn.Module):
         super().__init__()
        
 
-    def _getModel(self,model_name,pretrained):
+        
+    def _getModelAndFuse(self,model_names:list = ["resnext50_32x4d","vit_b_32"],pretrained:bool = True):
 
-        model = models.get_model(name=model_name,pretrained = pretrained)
+        model1 = models.get_model(name=model_names[0],pretrained = pretrained)
+        model2 = models.get_model(name=model_names[1],pretrained = pretrained)
 
-        feature_extract = [child for child in model.children()]
+        feature_extract1 = [child for child in model1.children()]
 
-        return nn.Sequential(*feature_extract[:-1])
+        feature_extract2 = [child for child in model2.children()]
+
+        self.modelList = [nn.Sequential(*feature_extract1[:-1]),nn.Sequential(*feature_extract2[:-1])]
+
+        for idx,i in enumerate(model_names):
+            if i.startswith("vit"):
+                self.idx = idx
+                self.extra = True
+                self.modelList.append(models.get_model(name=model_names[idx],pretrained = pretrained))
+
+
+
+        return self.modelList
 
     def _transformToTorchFormat(self,img):
         """
@@ -53,104 +139,196 @@ class FeatureExtraction(nn.Module):
         return transforms(img)
 
 
-    def _extract(self, img,model):
+    def _extract(self, img):
 
-        x = self.transformToTorchFormat(img)
-        x = Variable(torch.unsqueeze(x, dim=0).float(), requires_grad=False)
 
-        feature = model(x)
+        """
+        Do not forget if vit model you must take the feature of output[:,0,:]
+        """
 
         
-        feature = feature.detach().cpu().numpy().flatten()
-        return feature / np.linalg.norm(feature)
+        device = "mps" if torch.backends.mps.is_available() else "cpu"
 
-    def _beginExtractFeatures(self,imgList,df,model):
+       
+        x = self._transformToTorchFormat(img)
+
+        x = Variable(torch.unsqueeze(x, dim=0).float(), requires_grad=False)
+
+        x = x.to(device)
+
+    
+
+        if self.extra:
+
+
+            encoder = self.modelList[self.idx][1]
+            encoder.to(device)
+            self.modelList[2].to(device)
+            pro = self.modelList[2]._process_input(x)
+            n = pro.size(0)
+
+            
+            batch_class_token = self.modelList[2].class_token.expand(n,-1,-1)
+
+            feature1 = torch.cat([batch_class_token, pro], dim=1)
+            feature1 = encoder(feature1)
+            feature1 = feature1[:,0]
+
+            feature1 = feature1[:,:,None,None]
+
+            self.modelList[1-self.idx].to(device)
+            feature2 = self.modelList[1-self.idx].eval()(x)
+
+
+
+            
+        else:
+
+            self.modelList[0].to(device)
+            self.modelList[1].to(device)
+            feature1 = self.modelList[0].eval()(x)
+            feature2 = self.modelList[1].eval()(x)
+
+
+        
+
+        fusing = torch.cat([feature1,feature2],dim=1)
+
+        
+        features = fusing.detach().cpu().numpy().flatten()
+        return features / np.linalg.norm(features)
+
+
+    def _readImage(sel,img):
+
+        readed = cv.imread(img)
+        readed = cv.cvtColor(readed,cv.COLOR_BGR2RGB)
+        resized = cv.resize(readed,(224,224),interpolation=cv.INTER_AREA)
+    
+        return resized
+
+        
+
+
+    def _beginExtractFeatures(self,imgList,df):
        
         features = []
 
-        for img in imgList:
+        errors = []
+
+        for img in tqdm(imgList,desc= "Feature Extraction and indexing is begined",total=len(imgList),colour="red"):
             try:
-                readed = cv.imread(img)
-                readed = cv.cvtColor(readed,cv.COLOR_BGR2RGB)
-                resized = cv.resize(readed,(224,224),interpolation=cv.INTER_AREA)
-                features.append(self._extract(resized,model))
+                
+                features.append(self._extract(self._readImage(img)))
 
             except cv.error as e:
                 features.append(None)
-                print(f"Image is not recognized at file '{img}' the error is {e}")
+                errors.append(f"Image is not recognized at file '{img}' the error is {e}")
+        print(*errors)
         df["FEATURES"] = features
         df = df.dropna().reset_index(drop = True)
 
         cur_dir = os.getcwd()
 
-        df.to_pickle(f"{cur_dir}/featuresWithPaths.pkl")
+        df.to_pickle(f"{cur_dir}/metaData/featuresWithPaths.pkl")
 
         return df
 
+    def _indexing(self,df:pd.DataFrame):
+
+        assert len(df) != 0 , "There is no element in DataFrame"
+
+        path = DataStuff().createIndexFilePath("indexedImagesFeaturesData")
+
+        features = df["FEATURES"]
+        dim = len(features[0])
+        self.dim = dim
+        idx = faiss.IndexFlatL2(dim)
+
+        featureMatrix = np.vstack(features.values).astype(np.float32)
+
+        idx.add(featureMatrix)
+
+
+        faiss.write_index(idx,path)
+
+        return path
+
+    def _indexAllData(self):
+
+        data,img_list =  DataStuff()._getImageList("/Users/okanegemen/Desktop/CulturalPlacesFindingProject/dataWithImages.csv")
+
+
+        df = self._beginExtractFeatures(imgList=img_list,df=data)
+        path = self._indexing(df)
+
+        print(f"Indexing is completed and './...idx' file is saved at '{path}'!!!")
 
 
 
 
-class DataStuff():
+class SearchByIndexFile(FeatureExtraction):
     def __init__(self):
+        super().__init__()
+        
+
         pass
-        
-    def getImagesPathsFromFolder(self,rootPathOfImagesFolders:str,save:bool = True, savedName:str="dataWithImages"):
+
+    def _searchByIndex(self,extracted,nRetrive,df):
+
+        self.extracted = extracted
+        self.n = nRetrive
+
+        path = DataStuff().createIndexFilePath()
+
+        index = faiss.read_index(path)
+
+        dim,idx = index.search(np.array([self.extracted]).astype(np.float32),self.n)
+
+        return dict(zip(idx[0], df.loc[idx[0]][['PATHS',"LABELS"]].values.tolist()))
+
+    def _extractQuery(self,img_path):
 
         
-        folders = sorted(os.walk(rootPathOfImagesFolders))
+        img = super()._readImage(img_path)
 
-        dicti = {
-            "NAMES" : [],
-            "PATHS" : [],
-            "PIXELS":[]
+        super()._getModelAndFuse()
 
-        }
+        extracted = super()._extract(img)
 
-        for child in folders[1:]:
-            for image in child[2]:
-                
-                    
-                    dicti["NAMES"].append(str(child[0].split("/")[-1]))
-                    dicti["PATHS"].append(str(os.path.join(child[0],image)))
+        return extracted
 
-                
+
+
+
+search = SearchByIndexFile()
+
+data = pd.read_pickle("/Users/okanegemen/Desktop/CulturalPlacesFindingProject/metaData/featuresWithPaths.pkl")
+
+extracted = search._extractQuery("/Users/okanegemen/Desktop/CulturalPlacesFindingProject/dataLast/Xanthos_Antik_Kenti_Antalya/Xanthos_Antik_Kenti_Antalya482.png")
+
+dicti = search._searchByIndex(extracted,10,data)
+
         
-        df = pd.DataFrame(data=dicti,copy=True)
 
-        uniques = list(df["NAMES"].unique())
 
-        labels = [uniques.index(name) for name in df["NAMES"]]
-
-        df["LABELS"] = labels
-        if save:
-
-            df.to_csv(f"{savedName}.csv",index=False)
 
 
 
         
-        return dicti
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         
-
-    def makeArray(self,rawData):
-
-        return np.safe_eval(rawData)
-
-    
-
-    def getImageList(self,dfPath):
-        data = pd.read_csv(dfPath)
-        paths = data["PATHS"].values.tolist()
-
-        return [data,paths]
-
-         
-
-
-
-
-
-   
-
-
