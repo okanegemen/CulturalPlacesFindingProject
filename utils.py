@@ -13,6 +13,11 @@ import faiss
 from tqdm import tqdm
 
 from torch.backends import mps
+import statsmodels.stats.weightstats as st
+
+from scipy import stats
+
+
 
 
 warnings.filterwarnings("ignore")
@@ -199,13 +204,33 @@ class FeatureExtraction(nn.Module):
         return features / np.linalg.norm(features)
 
 
-    def _readImage(sel,img):
+    def _readImage(self,img):
 
-        readed = cv.imread(img)
-        readed = cv.cvtColor(readed,cv.COLOR_BGR2RGB)
-        resized = cv.resize(readed,(224,224),interpolation=cv.INTER_AREA)
+        self.error = []
+        try:
+
+
+            readed = cv.imread(img)
+            readed = cv.cvtColor(readed,cv.COLOR_BGR2RGB)
+            resized = cv.resize(readed,(224,224),interpolation=cv.INTER_AREA)
+            return resized
+        except cv.error as e:
+            self.error.append(e)
+
+            return None
+
+
     
-        return resized
+    def createCityColumn(self,df):
+
+        names = df["NAMES"].tolist()
+
+        cities = [city.split("_")[-1] for city in names]
+
+        df["CITIES"] = cities
+
+        return df
+         
 
         
 
@@ -214,21 +239,25 @@ class FeatureExtraction(nn.Module):
        
         features = []
 
-        errors = []
+        
 
         for img in tqdm(imgList,desc= "Feature Extraction and indexing is begined",total=len(imgList),colour="red"):
-            try:
-                
+
+
+            if self._readImage(img) is not None:
                 features.append(self._extract(self._readImage(img)))
 
-            except cv.error as e:
+            else:
                 features.append(None)
-                errors.append(f"Image is not recognized at file '{img}' the error is {e}")
-        print(*errors)
+                print(f"Image is not recognized at file '{img}' the error is {self.error[-1]} ")
+
+
         df["FEATURES"] = features
         df = df.dropna().reset_index(drop = True)
 
         cur_dir = os.getcwd()
+
+        df = self.createCityColumn(df)
 
         df.to_pickle(f"{cur_dir}/metaData/featuresWithPaths.pkl")
 
@@ -257,11 +286,8 @@ class FeatureExtraction(nn.Module):
     def _indexAllData(self):
 
         data,img_list =  DataStuff()._getImageList("/Users/okanegemen/Desktop/CulturalPlacesFindingProject/dataWithImages.csv")
-
-
         df = self._beginExtractFeatures(imgList=img_list,df=data)
         path = self._indexing(df)
-
         print(f"Indexing is completed and './...idx' file is saved at '{path}'!!!")
 
 
@@ -272,7 +298,6 @@ class SearchByIndexFile(FeatureExtraction):
         super().__init__()
         
 
-        pass
 
     def _searchByIndex(self,extracted,nRetrive,df):
 
@@ -283,15 +308,43 @@ class SearchByIndexFile(FeatureExtraction):
 
         index = faiss.read_index(path)
 
-        dim,idx = index.search(np.array([self.extracted]).astype(np.float32),self.n)
+        dist,idx = index.search(np.array([self.extracted]).astype(np.float32),self.n)
 
-        return dict(zip(idx[0], df.loc[idx[0]][['PATHS',"LABELS"]].values.tolist()))
+        dictionary = {
+            "idx":idx[0],
+            "paths": df.loc[idx[0]]["PATHS"].tolist(),
+            "labels":df.loc[idx[0]]["LABELS"].tolist(),
+            "distances": np.squeeze(dist).tolist(),
 
-    def _extractQuery(self,img_path):
+            "cities": df.loc[idx[0]]["CITIES"].tolist()
+
+        }
+
+
+
+
+        meanOfDistances = np.mean(dictionary["distances"])
+        
+    
+        if meanOfDistances > 0.65:
+
+            return f"Query Image is not found in Places "
+
+        mode=stats.mode(dictionary["labels"])
 
         
-        img = super()._readImage(img_path)
+        mode = dictionary["foundedImage"]=(*mode[0],*mode[1])
 
+        return dictionary
+
+    def _extractQuery(self,query):
+
+        if type(query) is str:
+
+            img = super()._readImage(query)
+
+        
+    
         super()._getModelAndFuse()
 
         extracted = super()._extract(img)
@@ -300,35 +353,22 @@ class SearchByIndexFile(FeatureExtraction):
 
 
 
-
-search = SearchByIndexFile()
-
-data = pd.read_pickle("/Users/okanegemen/Desktop/CulturalPlacesFindingProject/metaData/featuresWithPaths.pkl")
-
-extracted = search._extractQuery("/Users/okanegemen/Desktop/CulturalPlacesFindingProject/dataLast/Xanthos_Antik_Kenti_Antalya/Xanthos_Antik_Kenti_Antalya482.png")
-
-dicti = search._searchByIndex(extracted,10,data)
-
-        
-
-
-
-
-
-        
+    
 
 
 
 
 
 
+# search = SearchByIndexFile()
+
+# data = pd.read_pickle("/Users/okanegemen/Desktop/CulturalPlacesFindingProject/metaData/featuresWithPaths.pkl")
+
+# extracted = search._extractQuery("/Users/okanegemen/Desktop/CulturalPlacesFindingProject/dataLast/Ulu_Camii_Bursa/Ulu_Camii_Bursa3006.png")
 
 
+# dicti = search._searchByIndex(extracted,5,data)
 
+# print(dicti)
 
-
-
-
-
-
-        
+           
