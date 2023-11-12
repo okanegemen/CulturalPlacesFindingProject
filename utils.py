@@ -54,9 +54,11 @@ class DataStuff():
         labels = [uniques.index(name) for name in df["NAMES"]]
 
         df["LABELS"] = labels
+
+        cur_dir = os.getcwd()
         if save:
 
-            df.to_csv(f"{savedName}.csv",index=False)
+            df.to_csv(f"{cur_dir}/metaData/{savedName}.csv",index=False)
 
         return df
         
@@ -79,10 +81,17 @@ class DataStuff():
 
         return [data,paths]
 
-    def createIndexFilePath(self,name = "indexedImagesFeaturesData"):
+    def createIndexFilePath(self,name:str = "indexedImagesFeaturesData"):
 
         curr_dir = os.getcwd()
         return os.path.join(curr_dir,"metaData",f"{name}.idx")
+
+    def createPicklePath(self,name:str="featuresWithPaths"):
+        curr_dir = os.getcwd()
+        return os.path.join(curr_dir,"metaData",f"{name}.pkl")
+
+
+        
 
 
 
@@ -239,6 +248,10 @@ class FeatureExtraction(nn.Module):
        
         features = []
 
+        ds = DataStuff()
+
+
+
         
 
         for img in tqdm(imgList,desc= "Feature Extraction and indexing is begined",total=len(imgList),colour="red"):
@@ -259,7 +272,7 @@ class FeatureExtraction(nn.Module):
 
         df = self.createCityColumn(df)
 
-        df.to_pickle(f"{cur_dir}/metaData/featuresWithPaths.pkl")
+        df.to_pickle(ds.createPicklePath())
 
         return df
 
@@ -273,7 +286,7 @@ class FeatureExtraction(nn.Module):
         dim = len(features[0])
         self.dim = dim
         idx = faiss.IndexFlatL2(dim)
-
+        
         featureMatrix = np.vstack(features.values).astype(np.float32)
 
         idx.add(featureMatrix)
@@ -354,8 +367,34 @@ class SearchByIndexFile(FeatureExtraction):
 
 
     
+def getMetadata(name:str = None):
+    """
+    The function will return file data about name
 
+    Args:
+        name (str): Full of file_name because extantion is important just specify like 'name.csv or name.pkl'
 
+    Returns:
+        pd.DataFrame: Function will return  pandas dataframe type data 
+    """
+
+    assert type(name) is str , "Please specify string format path"
+
+    cur_dir = os.getcwd()
+
+    full_path = os.path.join(cur_dir,"metaData",name)
+
+    if name.endswith(".csv"):
+        data = pd.read_csv(full_path)
+
+    elif name.endswith(".pkl"):
+        data = pd.read_pickle(full_path)
+
+    else:
+
+        print("the Data file extantion is not supported.Please give '.pkl' or '.csv' type file !!!!!")
+
+    return data
 
 
 

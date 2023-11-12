@@ -133,7 +133,7 @@ class takeSource(object):
 
             curDir = os.getcwd()
 
-            data.to_csv(f"{curDir}/{name}",index=False)
+            data.to_csv(f"{curDir}/metaData/{name}",index=False)
 
             print(f"DataFrame is saved at located -------->  {curDir}/{name}")
 

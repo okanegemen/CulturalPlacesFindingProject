@@ -1,7 +1,5 @@
 from utils import *
 
-
-
 def dataOperation():
 
     fe = FeatureExtraction()

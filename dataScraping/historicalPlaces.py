@@ -66,7 +66,6 @@ def takeNamesAndCreateDf(listDiv:list,columns:list = None):
     return df
 
 
-
 takeNamesAndCreateDf(listOfDivs).to_csv("CitiesAndPlaces.csv",index=False)
 
     
