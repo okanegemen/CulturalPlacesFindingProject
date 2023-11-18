@@ -63,11 +63,8 @@ class DownloadTool():
 
     def downloadImages(self,img_src,rootDir:str = "/Users/okanegemen/Desktop/BitirmeProjesi/dataScraping" , folderName:str = "data" ):
 
-
+       
         self.commonDir = f"{rootDir}/{folderName}"
-
-
-
 
         self.checkAndCreate(self.commonDir)
 

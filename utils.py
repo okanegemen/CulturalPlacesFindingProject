@@ -17,7 +17,7 @@ import statsmodels.stats.weightstats as st
 
 from scipy import stats
 
-
+import config as cfg
 
 
 warnings.filterwarnings("ignore")
@@ -93,15 +93,6 @@ class DataStuff():
 
         
 
-
-
-
-
-
-
-
-
-
 class FeatureExtraction(nn.Module):
     def __init__(self):
         super().__init__()
@@ -160,7 +151,6 @@ class FeatureExtraction(nn.Module):
         Do not forget if vit model you must take the feature of output[:,0,:]
         """
 
-        
         device = "mps" if torch.backends.mps.is_available() else "cpu"
 
        
@@ -194,8 +184,7 @@ class FeatureExtraction(nn.Module):
             feature2 = self.modelList[1-self.idx].eval()(x)
 
 
-
-            
+       
         else:
 
             self.modelList[0].to(device)
@@ -268,7 +257,6 @@ class FeatureExtraction(nn.Module):
         df["FEATURES"] = features
         df = df.dropna().reset_index(drop = True)
 
-        cur_dir = os.getcwd()
 
         df = self.createCityColumn(df)
 
@@ -328,18 +316,16 @@ class SearchByIndexFile(FeatureExtraction):
             "paths": df.loc[idx[0]]["PATHS"].tolist(),
             "labels":df.loc[idx[0]]["LABELS"].tolist(),
             "distances": np.squeeze(dist).tolist(),
-
+            "places" : [" ".join(place.split("_")[:-1]) for place in df.loc[idx[0]]["NAMES"].tolist()],
             "cities": df.loc[idx[0]]["CITIES"].tolist()
 
         }
 
 
-
-
         meanOfDistances = np.mean(dictionary["distances"])
         
     
-        if meanOfDistances > 0.65:
+        if meanOfDistances > 0.7:
 
             return f"Query Image is not found in Places "
 
