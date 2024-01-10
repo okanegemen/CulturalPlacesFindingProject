@@ -21,10 +21,7 @@ from DownloadTool import *
 
 # ts.turnToDfAndSaveLinksPlacesAndCity("linksAndPlaces.csv",True) 
 
-
-
 dt = DownloadTool()
-
 
 dt.downloadImages(img_src = pd.read_csv("/Users/okanegemen/Desktop/BitirmeProjesi/linksAndPlaces.csv"),folderName="dataLast")
 
