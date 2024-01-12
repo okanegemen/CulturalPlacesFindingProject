@@ -18,6 +18,8 @@ import statsmodels.stats.weightstats as st
 from scipy import stats
 
 import config as cfg
+import PIL.Image as Image
+
 
 
 warnings.filterwarnings("ignore")
@@ -37,17 +39,18 @@ class DataStuff():
             "PATHS" : [],
 
         }
+        count = 0
 
         for child in folders[1:]:
             for image in child[2]:
                 
-                    
-                    dicti["NAMES"].append(str(child[0].split("/")[-1]))
-                    dicti["PATHS"].append(str(os.path.join(child[0],image)))
+                dicti["NAMES"].append(str(child[0].split("/")[-1]))
+                dicti["PATHS"].append(str(os.path.join(child[0],image)))
 
                 
         
         df = pd.DataFrame(data=dicti,copy=True)
+        
 
         uniques = list(df["NAMES"].unique())
 
@@ -93,7 +96,7 @@ class DataStuff():
 
         
 
-class FeatureExtraction(nn.Module):
+class FeatureExtraction(nn.Module,DataStuff):
     def __init__(self):
         super().__init__()
        
@@ -115,6 +118,8 @@ class FeatureExtraction(nn.Module):
                 self.idx = idx
                 self.extra = True
                 self.modelList.append(models.get_model(name=model_names[idx],pretrained = pretrained))
+            else:
+                self.extra = False
 
 
 
@@ -131,17 +136,8 @@ class FeatureExtraction(nn.Module):
         Returns:
             torch.tensor: The function is return torch.tensor type images
         """
-        transforms = T.Compose([
 
-            T.ToTensor(),
-            T.Normalize(mean = [0.485, 0.456, 0.406] , 
-                        std = [0.229, 0.224, 0.225])
-
-        ])
-
-
-
-        return transforms(img)
+        return cfg.TRANSFORMS(img)
 
 
     def _extract(self, img):
@@ -151,14 +147,18 @@ class FeatureExtraction(nn.Module):
         Do not forget if vit model you must take the feature of output[:,0,:]
         """
 
-        device = "mps" if torch.backends.mps.is_available() else "cpu"
 
-       
-        x = self._transformToTorchFormat(img)
+        if str(type(img)) != "<class 'torch.Tensor'>":
+            x = self._transformToTorchFormat(img)
+            x = Variable(torch.unsqueeze(x, dim=0).float(), requires_grad=False)
+        else:
+            x = Variable(img.float(), requires_grad=False)
 
-        x = Variable(torch.unsqueeze(x, dim=0).float(), requires_grad=False)
+        
 
-        x = x.to(device)
+        
+        x = x.to(cfg.DEVICE)
+        torch.mps.synchronize()
 
     
 
@@ -166,8 +166,8 @@ class FeatureExtraction(nn.Module):
 
 
             encoder = self.modelList[self.idx][1]
-            encoder.to(device)
-            self.modelList[2].to(device)
+            encoder.to(cfg.DEVICE)
+            self.modelList[2].to(cfg.DEVICE)
             pro = self.modelList[2]._process_input(x)
             n = pro.size(0)
 
@@ -179,16 +179,19 @@ class FeatureExtraction(nn.Module):
             feature1 = feature1[:,0]
 
             feature1 = feature1[:,:,None,None]
-
-            self.modelList[1-self.idx].to(device)
+           
+            torch.mps.empty_cache()
+            self.modelList[1-self.idx].to(cfg.DEVICE)
             feature2 = self.modelList[1-self.idx].eval()(x)
 
 
        
         else:
-
-            self.modelList[0].to(device)
-            self.modelList[1].to(device)
+            
+            torch.mps.empty_cache()
+            
+            self.modelList[0].to(cfg.DEVICE)
+            self.modelList[1].to(cfg.DEVICE)
             feature1 = self.modelList[0].eval()(x)
             feature2 = self.modelList[1].eval()(x)
 
@@ -207,12 +210,13 @@ class FeatureExtraction(nn.Module):
         self.error = []
         try:
 
-
-            readed = cv.imread(img)
-            readed = cv.cvtColor(readed,cv.COLOR_BGR2RGB)
-            resized = cv.resize(readed,(224,224),interpolation=cv.INTER_AREA)
+            readed_pil = Image.open(img)
+            resized = readed_pil.resize((224,224))
+            # readed = cv.imread(img)
+            # readed = cv.cvtColor(readed,cv.COLOR_BGR2RGB)
+            # resized = cv.resize(readed,(224,224),interpolation=cv.INTER_AREA)
             return resized
-        except cv.error as e:
+        except Exception as e:
             self.error.append(e)
 
             return None
@@ -240,9 +244,6 @@ class FeatureExtraction(nn.Module):
         ds = DataStuff()
 
 
-
-        
-
         for img in tqdm(imgList,desc= "Feature Extraction and indexing is begined",total=len(imgList),colour="red"):
 
 
@@ -268,7 +269,7 @@ class FeatureExtraction(nn.Module):
 
         assert len(df) != 0 , "There is no element in DataFrame"
 
-        path = DataStuff().createIndexFilePath("indexedImagesFeaturesData")
+        path = super().createIndexFilePath("indexedImagesFeaturesData")
 
         features = df["FEATURES"]
         dim = len(features[0])
@@ -286,7 +287,7 @@ class FeatureExtraction(nn.Module):
 
     def _indexAllData(self):
 
-        data,img_list =  DataStuff()._getImageList("/Users/okanegemen/Desktop/CulturalPlacesFindingProject/dataWithImages.csv")
+        data,img_list =  super()._getImageList(cfg.IMAGES_PATH_DF)
         df = self._beginExtractFeatures(imgList=img_list,df=data)
         path = self._indexing(df)
         print(f"Indexing is completed and './...idx' file is saved at '{path}'!!!")
@@ -305,14 +306,14 @@ class SearchByIndexFile(FeatureExtraction):
         self.extracted = extracted
         self.n = nRetrive
 
-        path = DataStuff().createIndexFilePath()
+        path = super().createIndexFilePath()
 
         index = faiss.read_index(path)
-
+        
         dist,idx = index.search(np.array([self.extracted]).astype(np.float32),self.n)
 
         dictionary = {
-            "idx":idx[0],
+            "idx":list(idx[0]),
             "paths": df.loc[idx[0]]["PATHS"].tolist(),
             "labels":df.loc[idx[0]]["LABELS"].tolist(),
             "distances": np.squeeze(dist).tolist(),
@@ -325,9 +326,9 @@ class SearchByIndexFile(FeatureExtraction):
         meanOfDistances = np.mean(dictionary["distances"])
         
     
-        if meanOfDistances > 0.7:
+        if meanOfDistances > 0.73:
 
-            return f"Query Image is not found in Places "
+            return f"Please upload another image"
 
         mode=stats.mode(dictionary["labels"])
 
@@ -336,15 +337,16 @@ class SearchByIndexFile(FeatureExtraction):
 
         return dictionary
 
-    def _extractQuery(self,query):
+    def _extractQuery(self,query,modelList):
 
         if type(query) is str:
 
             img = super()._readImage(query)
 
-        
+        else:
+            img = query
     
-        super()._getModelAndFuse()
+        super()._getModelAndFuse(model_names=modelList)
 
         extracted = super()._extract(img)
 
@@ -385,15 +387,3 @@ def getMetadata(name:str = None):
 
 
 
-# search = SearchByIndexFile()
-
-# data = pd.read_pickle("/Users/okanegemen/Desktop/CulturalPlacesFindingProject/metaData/featuresWithPaths.pkl")
-
-# extracted = search._extractQuery("/Users/okanegemen/Desktop/CulturalPlacesFindingProject/dataLast/Ulu_Camii_Bursa/Ulu_Camii_Bursa3006.png")
-
-
-# dicti = search._searchByIndex(extracted,5,data)
-
-# print(dicti)
-
-           

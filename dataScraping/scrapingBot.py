@@ -53,18 +53,17 @@ class takeSource(object):
 
                 try:
 
-                    element = WebDriverWait(browser,20).until(EC.element_to_be_clickable((
+                    element = WebDriverWait(browser,5).until(EC.element_to_be_clickable((
                         By.XPATH, 
                         f'//*[@id="islrg"]/div[1]/div[{str(beginFrom+i+1+count)}]/a[1]/div[1]/img')))
+                
                         
                     element.click()
 
-
-                
-
-                    fir_img = WebDriverWait(element,20).until(EC.element_to_be_clickable((
+                    fir_img = WebDriverWait(element,5).until(EC.element_to_be_clickable((
                     By.XPATH,
-                    "//*[@id='Sva75c']/div[2]/div[2]/div[2]/div[2]/c-wiz/div/div/div/div[3]/div[1]/a/img[1]")))
+                    "//*[@id='Sva75c']/div[2]/div[2]/div[2]/div[2]/c-wiz/div/div/div/div/div[3]/div[1]/a/img[1]")))
+              
 
 
 
@@ -85,16 +84,16 @@ class takeSource(object):
 
                 try:
 
-                    element = WebDriverWait(browser,20).until(EC.element_to_be_clickable((
+                    element = WebDriverWait(browser,5).until(EC.element_to_be_clickable((
                         By.XPATH, 
                         f'//*[@id="islrg"]/div[1]/div[{str(beginFrom+i+1+count)}]/a[1]/div[1]/img')))
                         
                     element.click()
 
 
-                    fir_img = WebDriverWait(element,20).until(EC.element_to_be_clickable((
+                    fir_img = WebDriverWait(element,5).until(EC.element_to_be_clickable((
                     By.XPATH,
-                    "//*[@id='Sva75c']/div[2]/div[2]/div[2]/div[2]/c-wiz/div/div/div/div[3]/div[1]/a/img[1]")))
+                    "//*[@id='Sva75c']/div[2]/div[2]/div[2]/div[2]/c-wiz/div/div/div/div/div[3]/div[1]/a/img[1]")))
 
 
                     img_src = fir_img.get_attribute('src')
