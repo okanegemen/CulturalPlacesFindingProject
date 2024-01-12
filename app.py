@@ -39,27 +39,7 @@ class GetPredictionOutput(Resource):
         self.dumped = None
         
 
-    @app.route("/getPreds",methods= ["GET"])
-    def get():
-
-        jsonList = sorted(os.listdir("/Users/okanegemen/CulturalPlacesFindingProject/Output"))
-
-        with open(f"/Users/okanegemen/CulturalPlacesFindingProject/Output/{jsonList[-1]}","r") as f:
-
-            data = json.load(f)
-        f.close()
-
-        db = pd.read_csv("/Users/okanegemen/CulturalPlacesFindingProject/metaData/dataWithImages.csv")
-        label = data["foundedImage"][0]
-
-        name = db[db["LABELS"]==label]["NAMES"].values[0]
-
-        name = " ".join(name.split("_")[:-1])
-        resp = requests.get(f"https://tr.wikipedia.org/w/api.php?format=json&action=query&prop=extracts&exintro&explaintext&redirects=1&titles={name}")
-        info = resp.json()
-        data["info"] = info['query']
-       
-        return data
+    
     
     @app.route("/postData",methods= ["POST"])
     def post():
@@ -79,22 +59,23 @@ class GetPredictionOutput(Resource):
             filename = secure_filename(file.filename)
 
             
+            cur_dir = os.getcwd()
 
+            test_img_dir = os.path.join(cur_dir,"TestImages")
 
-
-            imgPath = "/Users/okanegemen/CulturalPlacesFindingProject/TestImages/" + filename
+            if os.path.exists(test_img_dir) is False:
+                os.mkdir(test_img_dir)
+            imgPath = os.path.join(test_img_dir,filename)
             file.save(imgPath) 
-
-            
 
             dicti = search(modelList= cfg.MODELS,
                             queryImage = imgPath,
-                            nImg=5)
+                            nImg=cfg.WILL_RETURN_IMAGE_COUNT)
             
-            if len(os.listdir("/Users/okanegemen/CulturalPlacesFindingProject/TestImages"))>2:
-                name = os.listdir("/Users/okanegemen/CulturalPlacesFindingProject/TestImages")[0]
+            if len(os.listdir(test_img_dir))>2:
+                name = os.listdir(test_img_dir)[0]
 
-                os.remove(f"/Users/okanegemen/CulturalPlacesFindingProject/TestImages/{name}")
+                os.remove(f"{test_img_dir}/{name}")
 
 
             
