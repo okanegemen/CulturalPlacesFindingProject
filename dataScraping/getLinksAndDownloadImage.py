@@ -19,11 +19,11 @@ for idx in range(len(places)):
 
 
 
-ts.turnToDfAndSaveLinksPlacesAndCity("linksAndPlaces.csv",True) 
+ts.turnToDfAndSaveLinksPlacesAndCity("metadata/linksAndPlaces.csv",True) 
 
 dt = DownloadTool()
 
-dt.downloadImages(img_src = pd.read_csv("/Users/okanegemen/CulturalPlacesFindingProject/metaData/linksAndPlaces.csv"),folderName="dataLast")
+dt.downloadImages(img_src = pd.read_csv("/Users/okanegemen/CulturalPlacesFindingProject/metaData/linksAndPlaces.csv"),root_dir ="/Users/okanegemen/CulturalPlacesFindingProject/dataScraping" ,folderName="dataLast")
 
 
 
